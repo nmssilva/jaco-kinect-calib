@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!-- -->
+<launch>
+  <arg name="JACO" default="true" />
+  <arg name="kinect" default="true" />
+
+  <param name ="/use_sim_time" value="true"/>
+
+  <include file="$(find kinova_bringup)/launch/kinova_robot.launch" if="$(arg JACO)">
+    <arg name="kinova_robotType" value="m1n4s200"/>
+  </include>
+
+  <!--node name="kinova_interactive_control" pkg="kinova_driver" type="kinova_interactive_control" required="true" output="screen" args="m1n4s200" /-->
+
+  <include file="$(find freenect_launch)/launch/freenect.launch" if="$(arg kinect)"/>
+</launch>
