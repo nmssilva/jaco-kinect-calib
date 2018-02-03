@@ -8,6 +8,7 @@
 #include <sensor_msgs/point_cloud2_iterator.h>
 
 #include <stdio.h>
+#include <math.h>       /* fmod */
 #include <opencv2/opencv.hpp>
 
 #include <iostream>
@@ -19,6 +20,7 @@ using namespace cv;
 using namespace std;
 
 ros::Publisher pub;
+bool rotation_set = false;
 
 int getH(int r, int g, int b){
 
@@ -59,17 +61,25 @@ int getH(int r, int g, int b){
         return 0;
     }
 
+
+    int result;
+
     if(max == r){
-        return 60*(((g-b)/delta)%6);
+        result = (int)((60/1.41)*(fmod(((g-b)/(float)delta),6)))%256;
     }
 
     if(max == g){
-        return 60*(((b-r)/delta)+2);
+        result = (int)((60/1.41)*(((b-r)/(float)delta+2)))%256;
     }
 
-    else{ //if(max = b){
-        return 60*(((r-g)/delta)+4);
+    if(max == b){
+        result = (int)((60/1.41)*(((r-g)/(float)delta+4)))%256;
     }
+
+    if(result < 0 ){
+        return 256-result;
+    }
+    else return result;
 }
 
 int getS(int r, int g, int b){
@@ -133,13 +143,7 @@ int getV(int r, int g, int b){
     }
 }
 
-void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
-
-    // Create a container for the data.
-    sensor_msgs::PointCloud2 output;
-
-    // Do data processing here...
-
+void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
     for (int i=0; i < input -> height; i++)
     {
         for (int j=0; j < input -> width; j++)
@@ -180,12 +184,35 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
             s = getS(r,g,b);
             v = getV(r,g,b);
 
+            //cout << " r:" << r << " g: " << g << " b: " << b << endl;
+            //cout << " h:" << h << " s: " << s << " v: " << v << endl;
 
-            if(h >=35 && h <=79 && s >= 36 && s <= 115 && v >= 92 && v <= 255){
-                cout << "FOUND at: " << i << ", " << j << endl;
+
+            if(h >=70 && h <=100 && s >= 36 && s <= 115 && v >= 92 && v <= 255){ //green HSV values
+                /*
                 input -> data[input -> row_step*i + j*input -> point_step + 16] = 0;
                 input -> data[input -> row_step*i + j*input -> point_step + 17] = 0;
                 input -> data[input -> row_step*i + j*input -> point_step + 18] = 255;
+                 */
+            }
+            else{
+
+                //x nan
+                input -> data[input -> row_step*i + j*input -> point_step] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 1] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 2] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 3] = 127;
+                //y nan
+                input -> data[input -> row_step*i + j*input -> point_step + 4] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 5] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 6] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 7] = 127;
+                //z nan
+                input -> data[input -> row_step*i + j*input -> point_step + 8] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 9] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 10] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 11] = 127;
+
             }
 
             //cout << "i:" << i << " j:" << j << endl;
@@ -195,6 +222,103 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
             //cout << input -> data[input -> row_step*i + j*input -> point_step] << endl;
         }
     }
+}
+
+void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
+    for (int i=0; i < input -> height; i++)
+    {
+        for (int j=0; j < input -> width; j++)
+        {
+
+            float x,y,z;
+            x = y = z = 0;
+
+            unsigned char *pt;
+
+            //unsigned int p = input -> data + input -> row_step*i + j*input -> point_step;
+
+            pt = (input -> data).data() + input -> row_step*i + j*input -> point_step;
+
+            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step] << endl;
+            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+1] << endl;
+            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+2] << endl;
+            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+3] << endl;
+
+            memcpy(&x,pt,4);
+
+            memcpy(&y,pt+4,4);
+
+            memcpy(&z,pt+8,4);
+
+            int r,g,b,a;
+            r = g = b = a = 0;
+            // representation is in BRGA
+            b = input -> data[input -> row_step*i + j*input -> point_step + 16];
+            g = input -> data[input -> row_step*i + j*input -> point_step + 17];
+            r = input -> data[input -> row_step*i + j*input -> point_step + 18];
+            a = input -> data[input -> row_step*i + j*input -> point_step + 19];
+
+            int h,s,v;
+            h = s = v = 0;
+
+            h = getH(r,g,b);
+            s = getS(r,g,b);
+            v = getV(r,g,b);
+
+            //cout << " r:" << r << " g: " << g << " b: " << b << endl;
+            //cout << " h:" << h << " s: " << s << " v: " << v << endl;
+
+
+            if((h >=25 && h <=35 && s >= 50 && s <= 86 && v >= 190 && v <= 230)){ //yellow paper HSV values
+                /*
+                input -> data[input -> row_step*i + j*input -> point_step + 16] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 17] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 18] = 255;
+                 */
+            }
+            else{
+
+                //x nan
+                input -> data[input -> row_step*i + j*input -> point_step] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 1] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 2] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 3] = 127;
+                //y nan
+                input -> data[input -> row_step*i + j*input -> point_step + 4] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 5] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 6] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 7] = 127;
+                //z nan
+                input -> data[input -> row_step*i + j*input -> point_step + 8] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 9] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 10] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 11] = 127;
+
+            }
+
+            //cout << "i:" << i << " j:" << j << endl;
+            //cout << "x:" << x << " y:" << y << " z:" << z << endl;
+            //cout << "r:" << r << " g:" << g << " b:" << b << endl;
+
+            //cout << input -> data[input -> row_step*i + j*input -> point_step] << endl;
+        }
+    }
+}
+
+void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
+
+    // Create a container for the data.
+    sensor_msgs::PointCloud2 output;
+    sensor_msgs::PointCloud2 yellow;
+    sensor_msgs::PointCloud2 green;
+
+    // Do data processing here...
+
+    if(rotation_set){
+        filtergreen(input);
+    }else{
+        filterpaper(input);
+    }
 
     //debug
     //for(int i=0; i < 4; i++)
@@ -203,6 +327,8 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
     // Publish the data.
 
     output = *input;
+
+    //cout << output -> data[input -> row_step + input -> point_step + 11] << endl;
 
     pub.publish (output);
 }
