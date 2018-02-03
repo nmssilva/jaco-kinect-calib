@@ -15,12 +15,14 @@
 #include <sstream>
 #include <stdint.h>
 
+
 using namespace sensor_msgs;
 using namespace cv;
 using namespace std;
 
 ros::Publisher pub;
 bool rotation_set = false;
+int p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z;
 
 int getH(int r, int g, int b){
 
@@ -171,6 +173,7 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
 
             int r,g,b,a;
             r = g = b = a = 0;
+
             // representation is in BRGA
             b = input -> data[input -> row_step*i + j*input -> point_step + 16];
             g = input -> data[input -> row_step*i + j*input -> point_step + 17];
@@ -193,9 +196,9 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
                 input -> data[input -> row_step*i + j*input -> point_step + 16] = 0;
                 input -> data[input -> row_step*i + j*input -> point_step + 17] = 0;
                 input -> data[input -> row_step*i + j*input -> point_step + 18] = 255;
-                 */
+                */
             }
-            else{
+            else{ // send them into the void
 
                 //x nan
                 input -> data[input -> row_step*i + j*input -> point_step] = 0;
@@ -225,6 +228,11 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
 }
 
 void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
+
+
+    bool yellowdetect[input -> height * input -> width];
+    bool yellow_todelete[input -> height * input -> width];
+
     for (int i=0; i < input -> height; i++)
     {
         for (int j=0; j < input -> width; j++)
@@ -269,14 +277,14 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
             //cout << " h:" << h << " s: " << s << " v: " << v << endl;
 
 
-            if((h >=25 && h <=35 && s >= 50 && s <= 86 && v >= 190 && v <= 230)){ //yellow paper HSV values
-                /*
-                input -> data[input -> row_step*i + j*input -> point_step + 16] = 0;
-                input -> data[input -> row_step*i + j*input -> point_step + 17] = 0;
-                input -> data[input -> row_step*i + j*input -> point_step + 18] = 255;
-                 */
+            if((h >=25 && h <= 35 && s >= 50 && s <= 86 && v >= 190 && v <= 230)){ //yellow paper HSV values
+
+                yellowdetect[i*640+j] = true;
+
             }
-            else{
+            else{ // send them into the void
+
+                yellowdetect[i*640+j] = false;
 
                 //x nan
                 input -> data[input -> row_step*i + j*input -> point_step] = 0;
@@ -301,8 +309,51 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
             //cout << "r:" << r << " g:" << g << " b:" << b << endl;
 
             //cout << input -> data[input -> row_step*i + j*input -> point_step] << endl;
+
+
         }
     }
+
+    //detect unsignificant points
+    for (int i=0; i < input -> height; i++) {
+        for (int j = 0; j < input->width; j++) {
+            if(yellowdetect[i*640+j] == 1){
+                if(!(j==0 | j==479 | i%480==0 | i % 480 == 479)){ // not in border
+                    if(yellowdetect[i*640+j-1] == false ) yellow_todelete[i*640+j] = true; // left
+                    else if (yellowdetect[i*640+j+1] == false ) yellow_todelete[i*640+j] = true; // right
+                    else if (yellowdetect[i*640+j-input -> width] == false ) yellow_todelete[i*640+j] = true; // up
+                    else if (yellowdetect[i*640+j+input -> width] == false ) yellow_todelete[i*640+j] = true; // down
+                    else yellow_todelete[i*640+j] = false;
+                }
+            }
+
+        }
+    }
+
+    // SEND THEM TO THE VOID
+    for (int i=0; i < input -> height; i++) {
+        for (int j = 0; j < input->width; j++) {
+            if((j==0 | j==479 | i%480==0 | i % 480 == 479 | yellow_todelete[i*640+j])){
+                //x nan
+                input -> data[input -> row_step*i + j*input -> point_step] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 1] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 2] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 3] = 127;
+                //y nan
+                input -> data[input -> row_step*i + j*input -> point_step + 4] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 5] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 6] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 7] = 127;
+                //z nan
+                input -> data[input -> row_step*i + j*input -> point_step + 8] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 9] = 0;
+                input -> data[input -> row_step*i + j*input -> point_step + 10] = 192;
+                input -> data[input -> row_step*i + j*input -> point_step + 11] = 127;
+            }
+
+        }
+    }
+
 }
 
 void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
@@ -335,7 +386,7 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
 
 int main (int argc, char** argv){
     // Initialize ROS
-    ros::init (argc, argv, "my_pcl_tutorial");
+    ros::init (argc, argv, "jaco_kinect_calibration_node");
     ros::NodeHandle nh;
 
     // Create a ROS subscriber for the input point cloud
