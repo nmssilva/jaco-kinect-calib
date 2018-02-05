@@ -6,6 +6,9 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
+//TF
+#include <tf/transform_listener.h>
+
 #include <sensor_msgs/point_cloud2_iterator.h>
 
 #include <stdio.h>
@@ -16,6 +19,8 @@
 #include <sstream>
 #include <string>
 #include <stdint.h>
+
+#include <unistd.h> //sleep
 
 # define M_PI           3.14159265358979323846  /* pi */
 
@@ -29,7 +34,7 @@ bool rotation_set = false;
 int calib_rot_count = 0;
 float p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z;
 float p1xm,p1ym,p1zm,p2xm,p2ym,p2zm,p3xm,p3ym,p3zm;
-double yaw,pitch,roll;
+double tx,ty,tz,yaw,pitch,roll;
 
 int getH(int r, int g, int b){
 
@@ -294,8 +299,6 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
         }
     }
 
-    cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
-
     // stay with the nearest point
     // delete the others
     for (int i=0; i < input -> height; i++) {
@@ -339,21 +342,60 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
     //check is green point is below the paper, if yes flip 180 degrees
     if(gz < p1zm){
         pitch = M_PI;
-        cout << "PITCH: " << M_PI << endl;
+        cout << "pitch: " << M_PI << endl;
     }
     else{
-        cout << "PITCH: 0.0" << endl;
+        cout << "pitch: 0.0" << endl;
         pitch = 0;
     }
 
     //from this point on, calculation have to be done with the rotation done
-    // TODO: this
-    //system("rosrun tf static_transform_publisher 0 0 0 0 "+ yaw +" "+ pitch +" "+ roll +" m1n6s200_link_base camera_rgb_optical_frame 100");
+    std::stringstream syaw, spitch, sroll, command;
+    syaw << yaw; spitch << pitch; sroll << roll;
+
+    command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
+
+    system(command.str().c_str());
+
+    //cout << command.str() << endl;
+
+    usleep(1*1000*1000); // sleep program for 1 second, wait for it to apply the rotation...
+
+    bool gfound = false;
+    for (int i=0; i < input -> height && !gfound; i++) {
+        for (int j = 0; j < input->width && !gfound; j++) {
+
+            float x, y, z;
+            x = y = z = 0;
+
+            unsigned char *pt;
+
+            pt = (input->data).data() + input->row_step * i + j * input->point_step;
+
+            memcpy(&x, pt, 4);
+
+            memcpy(&y, pt + 4, 4);
+
+            memcpy(&z, pt + 8, 4);
+
+            // update new green point coords
+            if(x > -9999){ //if coordinates not nan
+                gx = x;
+                gy = y;
+                gz = z;
+                gfound = true;
+            }
+        }
+    }
+
+    //cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
+
+    //get tf values now
+
 
 }
 
 void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
-
 
     bool yellowdetect[input -> height * input -> width];
     bool yellow_todelete[input -> height * input -> width];
