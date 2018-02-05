@@ -30,7 +30,9 @@ using namespace std;
 
 ros::Publisher pubgreen;
 ros::Publisher pubpaper;
+
 bool rotation_set = false;
+bool pitch_set = false;
 int calib_rot_count = 0;
 float p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z;
 float p1xm,p1ym,p1zm,p2xm,p2ym,p2zm,p3xm,p3ym,p3zm;
@@ -299,6 +301,7 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
         }
     }
 
+
     // stay with the nearest point
     // delete the others
     for (int i=0; i < input -> height; i++) {
@@ -340,27 +343,33 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
 
 
     //check is green point is below the paper, if yes flip 180 degrees
-    if(gz < p1zm){
-        pitch = M_PI;
-        cout << "pitch: " << M_PI << endl;
+    if(!pitch_set){
+        if(gz < p1zm){
+            pitch = M_PI;
+            cout << "pitch: " << M_PI << endl << endl;
+        }
+        else{
+            cout << "pitch: 0.0" << endl << endl;
+            pitch = 0;
+        }
+
+        pitch_set=true;
+
+        //from this point on, calculation have to be done with the rotation done
+        std::stringstream syaw, spitch, sroll, command;
+        syaw << yaw; spitch << pitch; sroll << roll;
+
+        command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
+
+        system(command.str().c_str());
+
+        //cout << command.str() << endl;
+
     }
-    else{
-        cout << "pitch: 0.0" << endl;
-        pitch = 0;
-    }
-
-    //from this point on, calculation have to be done with the rotation done
-    std::stringstream syaw, spitch, sroll, command;
-    syaw << yaw; spitch << pitch; sroll << roll;
-
-    command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
-
-    system(command.str().c_str());
-
-    //cout << command.str() << endl;
 
     usleep(1*1000*1000); // sleep program for 1 second, wait for it to apply the rotation...
 
+    // update new green point coords
     bool gfound = false;
     for (int i=0; i < input -> height && !gfound; i++) {
         for (int j = 0; j < input->width && !gfound; j++) {
@@ -388,10 +397,34 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
         }
     }
 
-    //cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
+    cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
 
     //get tf values now
+    tf::TransformListener listener;
+    tf::StampedTransform transform;
+    try{
+        listener.waitForTransform("/m1n6s200_link_6", "/m1n6s200_link_base",
+                                  ros::Time(0), ros::Duration(3.0));
+        listener.lookupTransform("/m1n6s200_link_6", "/m1n6s200_link_base",
+                                 ros::Time(0), transform);
 
+
+        cout << "\nGreen wrist tf points: " << endl;
+        cout << "transform_x: " << transform.getOrigin().x() << endl;
+        cout << "transform_y: " << transform.getOrigin().y() << endl;
+        cout << "transform_z: " << transform.getOrigin().z() << endl;
+    }
+    catch (tf::TransformException ex){
+        ROS_ERROR("%s",ex.what());
+    }
+
+    tx = transform.getOrigin().x() - gx;
+    ty = transform.getOrigin().y() - gy;
+    tz = transform.getOrigin().z() - gz;
+
+    cout << "\ntx: " << tx << endl;
+    cout << "ty: " << ty << endl;
+    cout << "tz: " << tz << endl;
 
 }
 
@@ -708,7 +741,7 @@ int main (int argc, char** argv){
     cout << "=====================================================" << endl;
     cout << "|     KINECT CAMERA CALIBRATION USING JACO ARM      |" << endl;
     cout << "| INTELLIGENT AND MOBILE ROBOTICS FINAL PROJECT BY: |" << endl;
-    cout << "|    Nuno Silva          &         Marcos Pires     |" << endl;
+    cout << "|           Nuno Silva   &   Marcos Pires           |" << endl;
     cout << "=====================================================\n" << endl;
 
 
