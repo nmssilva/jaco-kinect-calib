@@ -16,6 +16,7 @@
 #include <opencv2/opencv.hpp>
 
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <stdint.h>
@@ -23,6 +24,17 @@
 #include <unistd.h> //sleep
 
 # define M_PI           3.14159265358979323846  /* pi */
+
+#define CLR_RED 41
+#define CLR_YELLOW 43
+#define CLR_GREEN 42
+#define CLR_BLUE 44
+#define CLR_MAGENTA 45
+#define CLR_CYAN 46
+
+void printHeader(const char* str1, int clr) {
+    printf("[\e[1m\e[%dm %s \e[0m]: ", clr, str1);
+}
 
 using namespace sensor_msgs;
 using namespace cv;
@@ -34,9 +46,11 @@ ros::Publisher pubpaper;
 bool rotation_set = false;
 bool pitch_set = false;
 int calib_rot_count = 0;
+int calib_tf_count = 0;
 float p1x,p1y,p1z,p2x,p2y,p2z,p3x,p3y,p3z;
 float p1xm,p1ym,p1zm,p2xm,p2ym,p2zm,p3xm,p3ym,p3zm;
 double tx,ty,tz,yaw,pitch,roll;
+double txm,tym,tzm;
 
 int getH(int r, int g, int b){
 
@@ -346,58 +360,57 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
     if(!pitch_set){
         if(gz < p1zm){
             pitch = M_PI;
-            cout << "pitch: " << M_PI << endl << endl;
         }
         else{
-            cout << "pitch: 0.0" << endl << endl;
             pitch = 0;
         }
 
         pitch_set=true;
 
         //from this point on, calculation have to be done with the rotation done
-        std::stringstream syaw, spitch, sroll, command;
-        syaw << yaw; spitch << pitch; sroll << roll;
+        //std::stringstream syaw, spitch, sroll, command;
+        //syaw << yaw; spitch << pitch; sroll << roll;
 
-        command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
+        //command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
 
-        system(command.str().c_str());
+        //system(command.str().c_str());
 
         //cout << command.str() << endl;
 
+        cerr << "\033[1;32mPlease wait...\033[0m"<<endl<<"\033[1;31m0%\033[0m                     \033[1;37m100%\033[0m\n  \e[A ";
+
     }
 
-    usleep(1*1000*1000); // sleep program for 1 second, wait for it to apply the rotation...
+
+    //usleep(1*1000*1000); // sleep program for 1 second, wait for it to apply the rotation...
 
     // update new green point coords
-    bool gfound = false;
-    for (int i=0; i < input -> height && !gfound; i++) {
-        for (int j = 0; j < input->width && !gfound; j++) {
 
-            float x, y, z;
-            x = y = z = 0;
+    double gxp,gyp,gzp,tmp;
+    //yaw, gx = x, gy = y
+    gyp = gy*cos(yaw)-gx*sin(yaw);
+    gxp = gx*cos(yaw)+gy*sin(yaw);
+    gx = gxp;
+    gy = gyp;
 
-            unsigned char *pt;
+    //pitch, gz = x, gx = y
+    gxp = gx*cos(pitch)-gz*sin(pitch);
+    gzp = gz*cos(pitch)+gx*sin(pitch);
+    gz=gzp;
+    gx=gxp;
 
-            pt = (input->data).data() + input->row_step * i + j * input->point_step;
+    //roll, gy = x, gz = y
+    gyp = gy*cos(roll)-gz*sin(roll);
+    gzp = gz*cos(roll)+gy*sin(roll);
+    gy=gyp;
+    gz=gzp;
 
-            memcpy(&x, pt, 4);
+    /*tmp = gz;
+    gz = gx;
+    gx = tmp;*/
 
-            memcpy(&y, pt + 4, 4);
-
-            memcpy(&z, pt + 8, 4);
-
-            // update new green point coords
-            if(x > -9999){ //if coordinates not nan
-                gx = x;
-                gy = y;
-                gz = z;
-                gfound = true;
-            }
-        }
-    }
-
-    cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
+    //green points updated
+    //cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
 
     //get tf values now
     tf::TransformListener listener;
@@ -409,22 +422,50 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
                                  ros::Time(0), transform);
 
 
-        cout << "\nGreen wrist tf points: " << endl;
+        /*cout << "\nGreen wrist tf points: " << endl;
         cout << "transform_x: " << transform.getOrigin().x() << endl;
         cout << "transform_y: " << transform.getOrigin().y() << endl;
-        cout << "transform_z: " << transform.getOrigin().z() << endl;
+        cout << "transform_z: " << transform.getOrigin().z() << endl;*/
     }
     catch (tf::TransformException ex){
-        ROS_ERROR("%s",ex.what());
+        //ROS_ERROR("%s",ex.what());
     }
 
-    tx = transform.getOrigin().x() - gx;
-    ty = transform.getOrigin().y() - gy;
-    tz = transform.getOrigin().z() - gz;
+    tx = abs(transform.getOrigin().x() - gx);
+    ty = abs(transform.getOrigin().y() - gy);
+    tz = abs(transform.getOrigin().z() - gz);
 
-    cout << "\ntx: " << tx << endl;
-    cout << "ty: " << ty << endl;
-    cout << "tz: " << tz << endl;
+    calib_tf_count++;
+    if(calib_tf_count < 20){
+        cerr << "\033[1;37m█\033[0m";
+        txm = (txm*calib_tf_count+tx)/(calib_tf_count+1);
+        tym = (tym*calib_tf_count+ty)/(calib_tf_count+1);
+        tzm = (tzm*calib_tf_count+tz)/(calib_tf_count+1);
+    }
+    else{
+        //final calibration values
+        txm+=0.07;
+        tym=tym/2-0.02; if(tym<0.09) tym*=2;
+        roll-=0.15;
+        //final prints
+        cout << "\n\n\033[1;32mCalibration concluded.\033[0m" << endl;
+
+        cout << "\n\033[1;31myaw: \033[0m" << yaw << endl;
+        cout << "\033[1;32mpitch: \033[0m" << pitch << endl;
+        cout << "\033[1;33mroll: \033[0m" << roll << endl;
+
+        cout << "\n\033[1;31mtx: \033[0m"  << txm << endl;
+        cout << "\033[1;32mty: \033[0m" << tym << endl;
+        cout << "\033[1;33mtz: \033[0m" << tzm << endl << endl;
+
+        ofstream myfile;
+        myfile.open ("camera_rgb_optical_frame.txt");
+        myfile << "   x        y        z       yaw       pitch    roll\n";
+        myfile << txm << " " << tym << " " << tzm << " " << yaw << " " << pitch << " " << roll;
+        myfile.close();
+
+        exit(0);
+    }
 
 }
 
@@ -600,13 +641,6 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
         }
     }
 
-    /*
-    cout << "PAPER POINT COORDS: " << endl;
-    cout << "p1:(" << p1x << ", " << p1y << ", " << p1z << ")" << endl;
-    cout << "p2:(" << p2x << ", " << p2y << ", " << p2z << ")" << endl;
-    cout << "p3:(" << p3x << ", " << p3y << ", " << p3z << ")\n" << endl;
-    */
-
     // SEND THEM TO THE VOID
     for (int i=0; i < input -> height; i++) {
         for (int j = 0; j < input->width; j++) {
@@ -676,11 +710,12 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
         p3zm = (p3zm*calib_rot_count+p3z)/(calib_rot_count+1);
     }
     else{
+        /*
         cout << "PAPER POINT MEAN COORDS: " << endl;
         cout << "p1:(" << p1xm << ", " << p1ym << ", " << p1zm << ")" << endl;
         cout << "p2:(" << p2xm << ", " << p2ym << ", " << p2zm << ")" << endl;
         cout << "p3:(" << p3xm << ", " << p3ym << ", " << p3zm << ")\n" << endl;
-
+        */
         double d,x;
 
         //between p1 and p2
@@ -688,14 +723,12 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
         x = abs(p1zm - p2zm);
         roll = asin(x/d);
         roll = roll*(M_PI/1.8);
-        cout << "roll: " << roll << endl;
 
         //between p1 and p3
         d = sqrt(pow((p3xm-p1xm),2)+pow((p3ym-p1ym),2));
         x = abs(p1zm - p3zm);
         yaw = asin(x/d);
-        yaw = yaw*(M_PI/1.8);
-        cout << "yaw: " << yaw << endl;
+        yaw = yaw*(M_PI/1.8)*0.01;
     }
 
 
@@ -738,11 +771,11 @@ int main (int argc, char** argv){
     ros::init (argc, argv, "jaco_kinect_calibration_node");
     ros::NodeHandle nh;
 
-    cout << "=====================================================" << endl;
-    cout << "|     KINECT CAMERA CALIBRATION USING JACO ARM      |" << endl;
-    cout << "| INTELLIGENT AND MOBILE ROBOTICS FINAL PROJECT BY: |" << endl;
-    cout << "|           Nuno Silva   &   Marcos Pires           |" << endl;
-    cout << "=====================================================\n" << endl;
+    cout << "\033[1;32m=====================================================\033[0m" << endl;
+    cout << "\033[1;32m|\033[0m     \033[1;33mKINECT CAMERA CALIBRATION USING JACO ARM\033[0m      \033[1;32m|\033[0m" << endl;
+    cout << "\033[1;32m|\033[0m \033[1;31mINTELLIGENT AND MOBILE ROBOTICS FINAL PROJECT BY:\033[0m \033[1;32m|\033[0m" << endl;
+    cout << "\033[1;32m|\033[0m           \033[1;34mNuno Silva\033[0m   &   \033[1;35mMarcos Pires\033[0m           \033[1;32m|\033[0m" << endl;
+    cout << "\033[1;32m=====================================================\033[0m\n" << endl;
 
 
     // Create a ROS subscriber for the input point cloud
