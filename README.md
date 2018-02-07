@@ -52,5 +52,5 @@ rosrun tf static_transform_publisher x y z yaw pitch roll m1n6s200_link_base cam
 
 Substitute the `x y z yaw pitch roll` with the values given in the file.
 
-Now your camera is calibrated. Enjoy 
+Now your camera is calibrated. Enjoy 👌
 
