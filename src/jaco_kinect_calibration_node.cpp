@@ -307,6 +307,7 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
 
     // stay with the nearest point
     // delete the others
+
     for (int i=0; i < input -> height; i++) {
         for (int j = 0; j < input->width; j++) {
 
@@ -451,11 +452,6 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
 
             pt = (input -> data).data() + input -> row_step*i + j*input -> point_step;
 
-            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step] << endl;
-            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+1] << endl;
-            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+2] << endl;
-            //cout << (int)input -> data[input -> row_step*i + j*input -> point_step+3] << endl;
-
             memcpy(&x,pt,4);
 
             memcpy(&y,pt+4,4);
@@ -476,10 +472,6 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
             h = getH(r,g,b);
             s = getS(r,g,b);
             v = getV(r,g,b);
-
-            //cout << " r:" << r << " g: " << g << " b: " << b << endl;
-            //cout << " h:" << h << " s: " << s << " v: " << v << endl;
-
 
             if((h >=25 && h <= 35 && s >= 50 && s <= 86 && v >= 190 && v <= 230)){ //yellow paper HSV values
 
@@ -507,13 +499,6 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
                 input -> data[input -> row_step*i + j*input -> point_step + 11] = 127;
 
             }
-
-            //cout << "i:" << i << " j:" << j << endl;
-            //cout << "x:" << x << " y:" << y << " z:" << z << endl;
-            //cout << "r:" << r << " g:" << g << " b:" << b << endl;
-
-            //cout << input -> data[input -> row_step*i + j*input -> point_step] << endl;
-
 
         }
     }
@@ -673,12 +658,6 @@ void filterpaper(const sensor_msgs::PointCloud2Ptr& input){
         p3zm = (p3zm*calib_rot_count+p3z)/(calib_rot_count+1);
     }
     else{
-        /*
-        cout << "PAPER POINT MEAN COORDS: " << endl;
-        cout << "p1:(" << p1xm << ", " << p1ym << ", " << p1zm << ")" << endl;
-        cout << "p2:(" << p2xm << ", " << p2ym << ", " << p2zm << ")" << endl;
-        cout << "p3:(" << p3xm << ", " << p3ym << ", " << p3zm << ")\n" << endl;
-        */
         double d,x;
 
         //between p1 and p2
@@ -701,8 +680,6 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
 
     // Create a container for the data.
     sensor_msgs::PointCloud2 output;
-    sensor_msgs::PointCloud2 yellow;
-    sensor_msgs::PointCloud2 green;
 
     // Do data processing here...
 
@@ -711,10 +688,6 @@ void cloud_cb (const sensor_msgs::PointCloud2Ptr& input){
     }else{
         filterpaper(input);
     }
-
-    //debug
-    //for(int i=0; i < 4; i++)
-    //    cout << input -> fields[i].name << " - " << (int)(input -> fields[i].datatype) << " - " << input -> fields[i].count << " - " << input -> fields[i].offset << endl;
 
     // Publish the data.
 
