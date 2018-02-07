@@ -1,4 +1,4 @@
-# jaco-kinectic-calib
+# jaco-kinect-calib
 
 ROS package to calibrate the Kinect Camera 📷 using a Kinova JACO arm 💪
 
