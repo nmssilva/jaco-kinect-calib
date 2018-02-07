@@ -25,17 +25,6 @@
 
 # define M_PI           3.14159265358979323846  /* pi */
 
-#define CLR_RED 41
-#define CLR_YELLOW 43
-#define CLR_GREEN 42
-#define CLR_BLUE 44
-#define CLR_MAGENTA 45
-#define CLR_CYAN 46
-
-void printHeader(const char* str1, int clr) {
-    printf("[\e[1m\e[%dm %s \e[0m]: ", clr, str1);
-}
-
 using namespace sensor_msgs;
 using namespace cv;
 using namespace std;
@@ -367,22 +356,9 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
 
         pitch_set=true;
 
-        //from this point on, calculation have to be done with the rotation done
-        //std::stringstream syaw, spitch, sroll, command;
-        //syaw << yaw; spitch << pitch; sroll << roll;
-
-        //command << "rosrun tf static_transform_publisher 0 0 0 " << syaw.str() << " " << spitch.str() << " " << sroll.str() << " m1n6s200_link_base camera_rgb_optical_frame 100 &";
-
-        //system(command.str().c_str());
-
-        //cout << command.str() << endl;
-
         cerr << "\033[1;32mPlease wait...\033[0m"<<endl<<"\033[1;31m0%\033[0m                     \033[1;37m100%\033[0m\n  \e[A ";
 
     }
-
-
-    //usleep(1*1000*1000); // sleep program for 1 second, wait for it to apply the rotation...
 
     // update new green point coords
 
@@ -405,13 +381,6 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
     gy=gyp;
     gz=gzp;
 
-    /*tmp = gz;
-    gz = gx;
-    gx = tmp;*/
-
-    //green points updated
-    //cout << "gx: " << gx << ", gy: " << gy << ", gz: " << gz << endl;
-
     //get tf values now
     tf::TransformListener listener;
     tf::StampedTransform transform;
@@ -420,12 +389,6 @@ void filtergreen(const sensor_msgs::PointCloud2Ptr& input){
                                   ros::Time(0), ros::Duration(3.0));
         listener.lookupTransform("/m1n6s200_link_6", "/m1n6s200_link_base",
                                  ros::Time(0), transform);
-
-
-        /*cout << "\nGreen wrist tf points: " << endl;
-        cout << "transform_x: " << transform.getOrigin().x() << endl;
-        cout << "transform_y: " << transform.getOrigin().y() << endl;
-        cout << "transform_z: " << transform.getOrigin().z() << endl;*/
     }
     catch (tf::TransformException ex){
         //ROS_ERROR("%s",ex.what());
