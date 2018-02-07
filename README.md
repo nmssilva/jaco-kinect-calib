@@ -1,11 +1,11 @@
 # jaco-kinectic-calib
 
-ROS package to calibrate the Kinect Camera 📷 using a Kinova JACO arm 💪
+ROS package to calibrate the Kinect Camera  using a Kinova JACO arm 
 
 This package was built under ROS Kinetic. The packages used for Kinova JACO are [here](https://github.com/nmssilva/kinova-ros), and for the Kinect are [here](https://github.com/ros-drivers/openni_camera).
 
 <p align="center">
-  <img src ="https://i.imgur.com/3461wjL.png" />
+  <img src ="https://i.imgur.com/sySgmWt.png" />
 </p>
 
 # Setup
@@ -52,5 +52,5 @@ rosrun tf static_transform_publisher x y z yaw pitch roll m1n6s200_link_base cam
 
 Substitute the `x y z yaw pitch roll` with the values given in the file.
 
-Now your camera is calibrated. Enjoy 👌
+Now your camera is calibrated. Enjoy 
 
